@@ -18,6 +18,7 @@ api = tweepy.API(auth)
 HASHTAGS = "#ลูกหมีซอนญ่า #LMSY #HarmonySecret"
 
 def get_random_quote():
+    """Fetch a random motivational quote from a public API"""
     try:
         response = requests.get("https://api.quotable.io/random", timeout=5)
         if response.status_code == 200:
@@ -25,15 +26,15 @@ def get_random_quote():
             return f"{data['content']} — {data['author']}"
         else:
             return "Stay positive and keep moving forward!"
-    except:
+    except Exception:
         return "Dream big and work hard every day!"
 
 def tweet_random_quote():
-    # Fetch random quote
+    """Post a tweet with a random quote + hashtags"""
     quote = get_random_quote()
     tweet = f"{quote} {HASHTAGS}"
 
-    # Ensure tweet stays within 280 characters
+    # Ensure tweet stays under 280 chars
     if len(tweet) > 280:
         tweet = tweet[:277] + "..."
 
@@ -41,7 +42,7 @@ def tweet_random_quote():
         api.update_status(tweet)
         print(f"✅ Tweet posted: {tweet}")
     except Exception as e:
-        print(f"⚠️ Error: {e}")
+        print(f"⚠️ Error posting tweet: {e}")
 
 if __name__ == "__main__":
     tweet_random_quote()
