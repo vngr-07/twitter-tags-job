@@ -1,73 +1,79 @@
 import os
-import tweepy
-import requests
-import sys
+import time
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
-# =====================
-# LOAD CREDENTIALS
-# =====================
-API_KEY = os.getenv("API_KEY")
-API_SECRET = os.getenv("API_SECRET")
-ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
-ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
+# =======================
+# CONFIGURATION
+# =======================
+USERNAME = os.getenv("TWITTER_USERNAME")  # Set in GitHub Secrets or Replit
+PASSWORD = os.getenv("TWITTER_PASSWORD")
+HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
+WAIT_TIME = 15  # seconds between actions
 
-# Debug: check if secrets are loaded
-print("🔍 Checking environment variables...")
-print("API_KEY:", "✅ Loaded" if API_KEY else "❌ Missing")
-print("API_SECRET:", "✅ Loaded" if API_SECRET else "❌ Missing")
-print("ACCESS_TOKEN:", "✅ Loaded" if ACCESS_TOKEN else "❌ Missing")
-print("ACCESS_TOKEN_SECRET:", "✅ Loaded" if ACCESS_TOKEN_SECRET else "❌ Missing")
+# =======================
+# LOGIN TO X (TWITTER)
+# =======================
+def login_to_twitter(driver):
+    driver.get("https://twitter.com/login")
+    time.sleep(5)
 
-if not all([API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET]):
-    print("❌ Missing one or more API credentials. Exiting.")
-    sys.exit(1)
+    # Enter username
+    username_input = driver.find_element(By.NAME, "text")
+    username_input.send_keys(USERNAME)
+    username_input.send_keys(Keys.RETURN)
+    time.sleep(3)
 
-# =====================
-# AUTHENTICATE
-# =====================
-try:
-    auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
-    api = tweepy.API(auth)
-    api.verify_credentials()
-    print("✅ Authentication successful!")
-except Exception as e:
-    print(f"❌ Authentication failed: {e}")
-    sys.exit(1)
+    # Enter password
+    password_input = driver.find_element(By.NAME, "password")
+    password_input.send_keys(PASSWORD)
+    password_input.send_keys(Keys.RETURN)
+    time.sleep(5)
+    print("✅ Logged into Twitter")
 
-# =====================
-# CONSTANTS
-# =====================
-HASHTAGS = "#ลูกหมีซอนญ่า #LMSY #HarmonySecret"
-QUOTES_API = "https://api.quotable.io/random"
+# =======================
+# SEARCH AND RETWEET
+# =======================
+def search_and_retweet(driver):
+    for tag in HASHTAGS:
+        print(f"🔍 Searching for {tag}...")
+        driver.get(f"https://twitter.com/search?q={tag}&f=live")
+        time.sleep(5)
 
-def get_random_quote():
-    """Fetch a random motivational quote from Quotable API"""
+        # Find tweets
+        tweets = driver.find_elements(By.XPATH, '//article[@data-testid="tweet"]')
+        print(f"Found {len(tweets)} tweets for {tag}")
+
+        for tweet in tweets[:3]:  # Limit to avoid spam
+            try:
+                # Find retweet button
+                rt_button = tweet.find_element(By.XPATH, './/div[@data-testid="retweet"]')
+                rt_button.click()
+                time.sleep(1)
+
+                # Confirm retweet
+                confirm = driver.find_element(By.XPATH, '//div[@data-testid="retweetConfirm"]')
+                confirm.click()
+                print(f"🔁 Retweeted a tweet with {tag}")
+                time.sleep(WAIT_TIME)
+            except:
+                print("⚠️ Skipping already retweeted tweet")
+                continue
+
+# =======================
+# MAIN SCRIPT
+# =======================
+def main():
+    options = uc.ChromeOptions()
+    options.headless = True
+    driver = uc.Chrome(options=options)
+
     try:
-        response = requests.get(QUOTES_API, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            return f"{data['content']} — {data['author']}"
-        else:
-            print("⚠️ API error, using fallback quote.")
-            return "Keep going, you’re doing great!"
-    except:
-        print("⚠️ Request failed, using fallback quote.")
-        return "Dream big, work hard, and make it happen!"
-
-def tweet_random_quote():
-    """Compose and post a tweet"""
-    quote = get_random_quote()
-    tweet = f"{quote} {HASHTAGS}"
-
-    # Ensure tweet <= 280 chars
-    if len(tweet) > 280:
-        tweet = tweet[:277] + "..."
-
-    try:
-        api.update_status(tweet)
-        print(f"✅ Tweet posted: {tweet}")
-    except Exception as e:
-        print(f"❌ Failed to post tweet: {e}")
+        login_to_twitter(driver)
+        search_and_retweet(driver)
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
-    tweet_random_quote()
+    main()
