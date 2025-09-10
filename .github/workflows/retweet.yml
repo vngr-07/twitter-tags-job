@@ -1,12 +1,12 @@
 name: Twitter Retweet Bot
 
 on:
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *" # Runs every 30 minutes
+    - cron: "*/30 * * * *" # Every 30 minutes
 
 jobs:
-  run-retweet-bot:
+  retweet-bot:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,19 +16,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
           python -m pip install --upgrade pip
-          pip install undetected-chromedriver selenium
+          pip install selenium
 
       - name: Run retweet bot
         run: python retweet-bot.py
         env:
           COOKIES_JSON: ${{ secrets.COOKIES_JSON }}
 
-      # ✅ Upload screenshots after the run (success or failure)
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
