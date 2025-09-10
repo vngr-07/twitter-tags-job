@@ -8,27 +8,38 @@ on:
 jobs:
   retweet-bot:
     runs-on: ubuntu-latest
+    retries: 3   # ✅ Automatically retry if the workflow fails
 
     steps:
+      # ✅ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ✅ Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
+      # ✅ Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install selenium==4.21.0 undetected-chromedriver==3.5.5 webdriver-manager
 
+      # ✅ Run the retweet bot with retry logic
       - name: Run retweet bot
-        run: python retweet-bot.py
+        run: |
+          echo "🚀 Starting retweet bot..."
+          for i in 1 2 3; do
+            echo "🔄 Attempt #$i..."
+            python retweet-bot.py && break || sleep 15
+          done
         env:
           TWITTER_USERNAME: ${{ secrets.TWITTER_USERNAME }}
           TWITTER_PASSWORD: ${{ secrets.TWITTER_PASSWORD }}
 
+      # ✅ Upload debug screenshots if anything fails
       - name: Upload debug screenshots
         if: always()
         uses: actions/upload-artifact@v4
