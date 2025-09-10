@@ -6,12 +6,12 @@ import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 
 HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
 WAIT_TIME = 12
 SCREENSHOT_DIR = "screenshots"
 
-# Ensure screenshots folder exists
 if not os.path.exists(SCREENSHOT_DIR):
     os.makedirs(SCREENSHOT_DIR)
 
@@ -65,7 +65,7 @@ def login_with_cookies(driver):
         _inject_cookie_list(driver, header_cookies)
 
     driver.get("https://x.com/home")
-    WebDriverWait(driver, 15).until(
+    WebDriverWait(driver, 20).until(
         EC.presence_of_element_located((By.TAG_NAME, "body"))
     )
     print("✅ Logged in via cookies")
@@ -75,6 +75,12 @@ def take_screenshot(driver, tag):
     driver.save_screenshot(filename)
     print(f"📸 Screenshot saved: {filename}")
 
+def human_scroll(driver, times=3):
+    actions = ActionChains(driver)
+    for _ in range(times):
+        actions.scroll_by_amount(0, 800).perform()
+        time.sleep(2)
+
 def search_and_retweet(driver):
     for tag in HASHTAGS:
         print(f"🔍 Searching for {tag} …")
@@ -82,8 +88,10 @@ def search_and_retweet(driver):
         success = False
         for attempt in range(2):  # Try twice per hashtag
             driver.get(f"https://x.com/search?q={tag}&f=live")
+            time.sleep(3)  # Give time for JS to start loading tweets
+
             try:
-                WebDriverWait(driver, 25).until(
+                WebDriverWait(driver, 40).until(
                     EC.presence_of_all_elements_located((By.XPATH, '//article[@data-testid="tweet"]'))
                 )
                 success = True
@@ -91,6 +99,7 @@ def search_and_retweet(driver):
             except:
                 print(f"⚠️ Tweets for {tag} didn't load, retrying...")
                 take_screenshot(driver, tag)
+                human_scroll(driver, times=5)
                 time.sleep(5)
 
         if not success:
@@ -119,10 +128,12 @@ def search_and_retweet(driver):
 
 def main():
     opts = uc.ChromeOptions()
-    opts.headless = True
+    opts.headless = False  # ⬅️ Running with a visible browser now
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+
     driver = uc.Chrome(options=opts)
     try:
         login_with_cookies(driver)
