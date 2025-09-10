@@ -4,7 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
+HASHTAGS = ["#LMSY"]
 WAIT_TIME = 12  # seconds between actions
 
 def _inject_cookie_list(driver, cookies):
