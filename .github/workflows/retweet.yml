@@ -1,4 +1,4 @@
-name: Twitter Retweet Bot
+name: Retweet Bot
 
 on:
   workflow_dispatch:
