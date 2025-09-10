@@ -9,66 +9,75 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
-# ==========================
-# CONFIGURATION
-# ==========================
 USERNAME = os.getenv("TWITTER_USERNAME")
 PASSWORD = os.getenv("TWITTER_PASSWORD")
 HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
 SCREENSHOT_DIR = "screenshots"
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
-# ==========================
-# LOGIN FUNCTION
-# ==========================
 def login(driver):
-    driver.get("https://x.com/login")
-    time.sleep(5)
+    driver.get("https://x.com/")
+    time.sleep(4)
 
-    # Enter username or email
     try:
+        # Click the "Entrar" button on the homepage
+        login_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//a[@data-testid="loginButton"]'))
+        )
+        login_button.click()
+        print("🔑 Clicked login button")
+        time.sleep(3)
+    except TimeoutException:
+        driver.save_screenshot(f"{SCREENSHOT_DIR}/login_button_failed.png")
+        raise RuntimeError("❌ Couldn't find the login button")
+
+    try:
+        # Fill username or email
         username_input = WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.NAME, "text"))
         )
         username_input.send_keys(USERNAME)
-        username_input.send_keys(Keys.RETURN)
+        print("👤 Entered username")
+        time.sleep(1)
+
+        # Click "Avançar"
+        next_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((
+                By.XPATH,
+                '//span[contains(text(),"Avançar")]/ancestor::div[@role="button"]'
+            ))
+        )
+        next_button.click()
+        print("➡️ Clicked 'Avançar'")
         time.sleep(3)
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/username_input_failed.png")
-        raise RuntimeError("❌ Could not find username input field.")
+        raise RuntimeError("❌ Couldn't enter username or click Avançar")
 
-    # Sometimes X asks for email/phone confirmation
     try:
-        alt_input = driver.find_element(By.NAME, "text")
-        if alt_input.is_displayed():
-            print("🔒 X is asking for email/phone confirmation...")
-            alt_input.send_keys(USERNAME)
-            alt_input.send_keys(Keys.RETURN)
-            time.sleep(3)
-    except:
-        pass
-
-    # Enter password
-    try:
+        # Fill password
         password_input = WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.NAME, "password"))
         )
         password_input.send_keys(PASSWORD)
-        password_input.send_keys(Keys.RETURN)
-        time.sleep(6)
+        print("🔒 Entered password")
+        time.sleep(1)
+
+        # Click final "Entrar" button
+        final_login_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//button[@data-testid="LoginForm_Login_Button"]'))
+        )
+        final_login_button.click()
         print("✅ Logged in successfully")
+        time.sleep(6)
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/password_input_failed.png")
-        raise RuntimeError("❌ Could not find password input field.")
+        raise RuntimeError("❌ Couldn't enter password or click final login")
 
-    # Final login check
     if "login" in driver.current_url or "signin" in driver.current_url:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/login_failed.png")
-        raise RuntimeError("❌ Login failed. Please check username/password.")
+        raise RuntimeError("❌ Login failed. Check username/password")
 
-# ==========================
-# SEARCH & RETWEET
-# ==========================
 def search_and_retweet(driver):
     for tag in HASHTAGS:
         print(f"🔍 Searching for {tag} …")
@@ -105,9 +114,6 @@ def search_and_retweet(driver):
             except Exception as e:
                 print(f"⚠️ Failed to retweet tweet {idx}: {e}")
 
-# ==========================
-# MAIN FUNCTION
-# ==========================
 def main():
     options = uc.ChromeOptions()
     options.add_argument("--headless=new")
