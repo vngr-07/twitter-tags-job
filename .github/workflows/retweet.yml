@@ -1,12 +1,12 @@
 name: Retweet Bot
 
 on:
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch:
   schedule:
     - cron: "*/30 * * * *" # Every 30 minutes
 
 jobs:
-  run-retweet-bot:
+  retweet-bot:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,15 +26,13 @@ jobs:
       - name: Run retweet bot
         run: python retweet-bot.py
         env:
-          COOKIES_JSON: ${{ secrets.COOKIES_JSON }}
+          TWITTER_USERNAME: ${{ secrets.TWITTER_USERNAME }}
+          TWITTER_PASSWORD: ${{ secrets.TWITTER_PASSWORD }}
 
-      # ✅ Upload screenshots & HTML snapshots even on failure
-      - name: Upload debug artifacts
+      - name: Upload debug screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: debug-files
-          path: |
-            screenshots/
-            html_snapshots/
+          name: screenshots
+          path: screenshots/
           retention-days: 7
