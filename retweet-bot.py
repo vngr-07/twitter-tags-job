@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
+HASHTAGS = ["SECRET REACTION EP7"]
 WAIT_TIME = 12
 
 def _inject_cookie_list(driver, cookies):
