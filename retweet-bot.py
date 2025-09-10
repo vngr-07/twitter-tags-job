@@ -1,13 +1,22 @@
 import os
 import time
 import json
+import re
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-HASHTAGS = ["SECRET REACTION EP7"]
+HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
 WAIT_TIME = 12
+SCREENSHOT_DIR = "screenshots"
+
+# Ensure screenshots folder exists
+if not os.path.exists(SCREENSHOT_DIR):
+    os.makedirs(SCREENSHOT_DIR)
+
+def _sanitize_filename(name: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', name)
 
 def _inject_cookie_list(driver, cookies):
     added = 0
@@ -61,12 +70,17 @@ def login_with_cookies(driver):
     )
     print("✅ Logged in via cookies")
 
+def take_screenshot(driver, tag):
+    filename = os.path.join(SCREENSHOT_DIR, f"{_sanitize_filename(tag)}.png")
+    driver.save_screenshot(filename)
+    print(f"📸 Screenshot saved: {filename}")
+
 def search_and_retweet(driver):
     for tag in HASHTAGS:
         print(f"🔍 Searching for {tag} …")
 
         success = False
-        for attempt in range(2):  # try twice per hashtag
+        for attempt in range(2):  # Try twice per hashtag
             driver.get(f"https://x.com/search?q={tag}&f=live")
             try:
                 WebDriverWait(driver, 25).until(
@@ -76,6 +90,7 @@ def search_and_retweet(driver):
                 break
             except:
                 print(f"⚠️ Tweets for {tag} didn't load, retrying...")
+                take_screenshot(driver, tag)
                 time.sleep(5)
 
         if not success:
