@@ -16,7 +16,19 @@ USERNAME = os.getenv("TWITTER_USERNAME")
 PASSWORD = os.getenv("TWITTER_PASSWORD")
 HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
 SCREENSHOT_DIR = "screenshots"
+HTML_DIR = "html_snapshots"
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+os.makedirs(HTML_DIR, exist_ok=True)
+
+
+# ==========================
+# FUNÇÃO PARA SALVAR HTML
+# ==========================
+def save_html(driver, name):
+    path = os.path.join(HTML_DIR, name)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(driver.page_source)
+    print(f"📄 HTML snapshot saved: {path}")
 
 
 # ==========================
@@ -26,7 +38,7 @@ def login(driver):
     driver.get("https://x.com/")
     time.sleep(4)
 
-    # Clica no botão inicial "Entrar"
+    # 1. Clica no botão inicial "Entrar"
     try:
         login_button = WebDriverWait(driver, 15).until(
             EC.element_to_be_clickable((By.XPATH, '//a[@data-testid="loginButton"]'))
@@ -36,9 +48,10 @@ def login(driver):
         time.sleep(3)
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/login_button_failed.png")
+        save_html(driver, "login_button_failed.html")
         raise RuntimeError("❌ Couldn't find initial login button")
 
-    # Digita o nome de usuário/email
+    # 2. Preenche o username/email
     try:
         username_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "text"))
@@ -48,14 +61,16 @@ def login(driver):
         time.sleep(1)
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/username_input_failed.png")
+        save_html(driver, "username_input_failed.html")
         raise RuntimeError("❌ Couldn't find username input")
 
-    # Tenta clicar "Avançar" → se não encontrar, tenta "Entrar" direto
+    # 3. Tenta clicar no botão "Avançar" OU "Entrar"
     try:
+        # Primeiro tenta encontrar "Avançar"
         next_button = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((
                 By.XPATH,
-                '//span[contains(text(),"Avançar")]/ancestor::div[@role="button"]'
+                '//div[@role="button" and .//span[contains(text(),"Avançar")]]'
             ))
         )
         next_button.click()
@@ -66,18 +81,30 @@ def login(driver):
             login_direct_button = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((
                     By.XPATH,
-                    '//span[contains(text(),"Entrar")]/ancestor::div[@role="button"]'
+                    '//div[@role="button" and .//span[contains(text(),"Entrar")]]'
                 ))
             )
             login_direct_button.click()
             print("🔑 Clicked direct 'Entrar'")
         except TimeoutException:
-            driver.save_screenshot(f"{SCREENSHOT_DIR}/next_button_failed.png")
-            raise RuntimeError("❌ Couldn't find 'Avançar' or 'Entrar' button")
+            # Última tentativa: pega o primeiro botão genérico habilitado
+            try:
+                fallback_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((
+                        By.XPATH,
+                        '//div[@role="button" and not(@disabled)]'
+                    ))
+                )
+                fallback_button.click()
+                print("🟢 Clicked fallback button")
+            except TimeoutException:
+                driver.save_screenshot(f"{SCREENSHOT_DIR}/next_button_failed.png")
+                save_html(driver, "next_button_failed.html")
+                raise RuntimeError("❌ Couldn't find any button after username")
 
     time.sleep(3)
 
-    # Digita a senha
+    # 4. Preenche a senha e clica no botão final "Entrar"
     try:
         password_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "password"))
@@ -86,7 +113,6 @@ def login(driver):
         print("🔒 Entered password")
         time.sleep(1)
 
-        # Clica no botão final "Entrar"
         final_login_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, '//button[@data-testid="LoginForm_Login_Button"]'))
         )
@@ -94,12 +120,14 @@ def login(driver):
         print("✅ Clicked final 'Entrar'")
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/password_input_failed.png")
+        save_html(driver, "password_input_failed.html")
         raise RuntimeError("❌ Couldn't enter password or click final login")
 
-    # Confirma se o login foi bem-sucedido
+    # 5. Confirma se login foi bem-sucedido
     time.sleep(5)
     if "login" in driver.current_url or "signin" in driver.current_url:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/login_failed.png")
+        save_html(driver, "login_failed.html")
         raise RuntimeError("❌ Login failed. Please check username/password")
 
     print("✅ Successfully logged in")
@@ -120,12 +148,14 @@ def search_and_retweet(driver):
             )
         except TimeoutException:
             driver.save_screenshot(f"{SCREENSHOT_DIR}/{re.sub('[^a-zA-Z0-9]', '_', tag)}_notweets.png")
+            save_html(driver, f"{re.sub('[^a-zA-Z0-9]', '_', tag)}_notweets.html")
             print(f"⚠️ No tweets found for {tag}")
             continue
 
         tweets = driver.find_elements(By.XPATH, '//article[@data-testid="tweet"]')
         print(f"✅ Found {len(tweets)} tweets for {tag}")
 
+        # Limita a retweetar até 3 por hashtag
         to_retweet = random.sample(tweets, min(len(tweets), 3))
         for idx, tweet in enumerate(to_retweet, 1):
             try:
