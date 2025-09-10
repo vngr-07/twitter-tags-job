@@ -1,8 +1,7 @@
 name: Retweet Bot
-
 on:
   schedule:
-    - cron: "*/30 * * * *" # Every 30 minutes
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -10,14 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-      - name: Install dependencies
+      - uses: actions/setup-python@v4
+        with: { python-version: "3.10" }
+      - name: Install deps
         run: pip install selenium undetected-chromedriver
-      - name: Run Retweet Bot
+      - name: Run bot
         env:
-          TWITTER_USERNAME: ${{ secrets.TWITTER_USERNAME }}
-          TWITTER_PASSWORD: ${{ secrets.TWITTER_PASSWORD }}
+          # Use exactly one of these:
+          COOKIES_JSON: ${{ secrets.COOKIES_JSON }}      # paste JSON from Cookie-Editor
+          # COOKIE_HEADER: ${{ secrets.COOKIE_HEADER }}  # or paste Cookie: line from DevTools
         run: python retweet-bot.py
