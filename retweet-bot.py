@@ -9,19 +9,26 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
+# ==========================
+# CONFIGURAÇÕES
+# ==========================
 USERNAME = os.getenv("TWITTER_USERNAME")
 PASSWORD = os.getenv("TWITTER_PASSWORD")
 HASHTAGS = ["#ลูกหมีซอนญ่า", "#LMSY", "#HarmonySecret"]
 SCREENSHOT_DIR = "screenshots"
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
+
+# ==========================
+# LOGIN
+# ==========================
 def login(driver):
     driver.get("https://x.com/")
     time.sleep(4)
 
+    # Clica no botão inicial "Entrar"
     try:
-        # Click the "Entrar" button on the homepage
-        login_button = WebDriverWait(driver, 10).until(
+        login_button = WebDriverWait(driver, 15).until(
             EC.element_to_be_clickable((By.XPATH, '//a[@data-testid="loginButton"]'))
         )
         login_button.click()
@@ -29,19 +36,23 @@ def login(driver):
         time.sleep(3)
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/login_button_failed.png")
-        raise RuntimeError("❌ Couldn't find the login button")
+        raise RuntimeError("❌ Couldn't find initial login button")
 
+    # Digita o nome de usuário/email
     try:
-        # Fill username or email
-        username_input = WebDriverWait(driver, 15).until(
+        username_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "text"))
         )
         username_input.send_keys(USERNAME)
         print("👤 Entered username")
         time.sleep(1)
+    except TimeoutException:
+        driver.save_screenshot(f"{SCREENSHOT_DIR}/username_input_failed.png")
+        raise RuntimeError("❌ Couldn't find username input")
 
-        # Click "Avançar"
-        next_button = WebDriverWait(driver, 10).until(
+    # Tenta clicar "Avançar" → se não encontrar, tenta "Entrar" direto
+    try:
+        next_button = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((
                 By.XPATH,
                 '//span[contains(text(),"Avançar")]/ancestor::div[@role="button"]'
@@ -49,35 +60,54 @@ def login(driver):
         )
         next_button.click()
         print("➡️ Clicked 'Avançar'")
-        time.sleep(3)
     except TimeoutException:
-        driver.save_screenshot(f"{SCREENSHOT_DIR}/username_input_failed.png")
-        raise RuntimeError("❌ Couldn't enter username or click Avançar")
+        print("⚠️ 'Avançar' not found, trying direct 'Entrar' button...")
+        try:
+            login_direct_button = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((
+                    By.XPATH,
+                    '//span[contains(text(),"Entrar")]/ancestor::div[@role="button"]'
+                ))
+            )
+            login_direct_button.click()
+            print("🔑 Clicked direct 'Entrar'")
+        except TimeoutException:
+            driver.save_screenshot(f"{SCREENSHOT_DIR}/next_button_failed.png")
+            raise RuntimeError("❌ Couldn't find 'Avançar' or 'Entrar' button")
 
+    time.sleep(3)
+
+    # Digita a senha
     try:
-        # Fill password
-        password_input = WebDriverWait(driver, 15).until(
+        password_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "password"))
         )
         password_input.send_keys(PASSWORD)
         print("🔒 Entered password")
         time.sleep(1)
 
-        # Click final "Entrar" button
+        # Clica no botão final "Entrar"
         final_login_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, '//button[@data-testid="LoginForm_Login_Button"]'))
         )
         final_login_button.click()
-        print("✅ Logged in successfully")
-        time.sleep(6)
+        print("✅ Clicked final 'Entrar'")
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/password_input_failed.png")
         raise RuntimeError("❌ Couldn't enter password or click final login")
 
+    # Confirma se o login foi bem-sucedido
+    time.sleep(5)
     if "login" in driver.current_url or "signin" in driver.current_url:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/login_failed.png")
-        raise RuntimeError("❌ Login failed. Check username/password")
+        raise RuntimeError("❌ Login failed. Please check username/password")
 
+    print("✅ Successfully logged in")
+
+
+# ==========================
+# PESQUISA E RETWEET
+# ==========================
 def search_and_retweet(driver):
     for tag in HASHTAGS:
         print(f"🔍 Searching for {tag} …")
@@ -85,7 +115,7 @@ def search_and_retweet(driver):
         time.sleep(3)
 
         try:
-            WebDriverWait(driver, 15).until(
+            WebDriverWait(driver, 20).until(
                 EC.presence_of_all_elements_located((By.XPATH, '//article[@data-testid="tweet"]'))
             )
         except TimeoutException:
@@ -114,6 +144,10 @@ def search_and_retweet(driver):
             except Exception as e:
                 print(f"⚠️ Failed to retweet tweet {idx}: {e}")
 
+
+# ==========================
+# MAIN
+# ==========================
 def main():
     options = uc.ChromeOptions()
     options.add_argument("--headless=new")
@@ -131,6 +165,7 @@ def main():
     finally:
         driver.quit()
         print("🏁 Bot finished successfully")
+
 
 if __name__ == "__main__":
     main()
