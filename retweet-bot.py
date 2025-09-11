@@ -1,149 +1,114 @@
 import os
 import time
-from datetime import datetime
+import random
+import traceback
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
-
-# ==========================
-# Configurações
-# ==========================
-USERNAME = os.getenv("TWITTER_USERNAME")
-PASSWORD = os.getenv("TWITTER_PASSWORD")
-HASHTAGS = ["#Python", "#Selenium"]  # personalize as hashtags
-SCREENSHOT_DIR = "screenshots"
-os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
 
-def save_html(driver, name):
-    """Salva HTML da página para debug."""
-    with open(f"{SCREENSHOT_DIR}/{name}", "w", encoding="utf-8") as f:
+# utilitário para salvar debug
+def save_debug(driver, name="debug"):
+    os.makedirs("html_snapshots", exist_ok=True)
+    with open(f"html_snapshots/{name}.html", "w", encoding="utf-8") as f:
         f.write(driver.page_source)
+    driver.save_screenshot(f"html_snapshots/{name}.png")
+    print(f"📄 HTML e screenshot salvos: {name}")
+
+
+def create_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    return webdriver.Chrome(options=chrome_options)
 
 
 def login(driver):
-    """Realiza login no X/Twitter."""
-    driver.get("https://x.com/")
-    time.sleep(4)
+    print("🔑 Abrindo login...")
+    driver.get("https://twitter.com/i/flow/login")
 
-    # 1. Clica no botão inicial de login (se existir)
+    # espera o input de username
     try:
-        login_button = WebDriverWait(driver, 15).until(
-            EC.element_to_be_clickable((By.XPATH, '//a[@data-testid="loginButton"]'))
-        )
-        login_button.click()
-        print("🔑 Clicked login button")
-        time.sleep(2)
-    except TimeoutException:
-        print("⚠️ Login button not found, maybe already on login page")
-
-    # 2. Preenche username
-    try:
-        username_input = WebDriverWait(driver, 20).until(
+        username_input = WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.NAME, "text"))
         )
-        username_input.clear()
-        username_input.send_keys(USERNAME)
+        username_input.send_keys(os.environ["TWITTER_USERNAME"])
         print("👤 Entered username")
-        time.sleep(1)
+    except Exception:
+        save_debug(driver, "username_failed")
+        raise RuntimeError("❌ Não achou input de username")
 
-        # Clica no primeiro botão ativo (ignora texto)
-        next_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((
-                By.XPATH,
-                '//div[@role="button" and not(@disabled)][1]'
-            ))
-        )
-        next_button.click()
-        print("➡️ Clicked generic next button")
-        time.sleep(2)
-
-    except TimeoutException:
-        driver.save_screenshot(f"{SCREENSHOT_DIR}/username_input_failed.png")
-        save_html(driver, "username_input_failed.html")
-        raise RuntimeError("❌ Couldn't find username input or next button")
-
-    # 3. Preenche senha
+    # agora tenta encontrar o botão "next"
     try:
-        password_input = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.NAME, "password"))
-        )
-        password_input.clear()
-        password_input.send_keys(PASSWORD)
-        print("🔒 Entered password")
-        time.sleep(1)
+        next_button = None
 
-        # Clica no primeiro botão ativo (ignora texto)
-        login_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((
-                By.XPATH,
-                '//div[@role="button" and not(@disabled)][1]'
-            ))
-        )
-        login_button.click()
-        print("✅ Clicked generic login button")
-        time.sleep(5)
+        # 1ª tentativa: botão com data-testid
+        try:
+            next_button = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, '//div[@data-testid="ocfEnterTextNextButton"]'))
+            )
+        except Exception:
+            pass
 
-    except TimeoutException:
-        driver.save_screenshot(f"{SCREENSHOT_DIR}/password_input_failed.png")
-        save_html(driver, "password_input_failed.html")
-        raise RuntimeError("❌ Couldn't find password input or login button")
-
-    # 4. Verifica se login funcionou
-    if "login" in driver.current_url or "signin" in driver.current_url:
-        driver.save_screenshot(f"{SCREENSHOT_DIR}/login_failed.png")
-        save_html(driver, "login_failed.html")
-        raise RuntimeError("❌ Login failed. Please check credentials")
-
-    print("✅ Successfully logged in")
-
-
-def search_and_retweet(driver, hashtag):
-    """Procura tweets por hashtag e dá RT."""
-    print(f"🔍 Searching for {hashtag}")
-    driver.get(f"https://x.com/search?q={hashtag}&src=typed_query&f=live")
-    time.sleep(5)
-
-    try:
-        tweets = WebDriverWait(driver, 15).until(
-            EC.presence_of_all_elements_located((By.XPATH, '//article[@data-testid="tweet"]'))
-        )
-        print(f"📝 Found {len(tweets)} tweets for {hashtag}")
-
-        for tweet in tweets[:3]:  # só 3 primeiros para evitar spam
+        # 2ª tentativa: botão visível com texto
+        if not next_button:
             try:
-                rt_button = tweet.find_element(By.XPATH, './/button[@data-testid="retweet"]')
-                rt_button.click()
-                time.sleep(1)
-
-                confirm = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((By.XPATH, '//div[@data-testid="retweetConfirm"]'))
+                next_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, '//div[@role="button"]//span[contains(text(),"Avançar") or contains(text(),"Next")]'))
                 )
-                confirm.click()
-                print(f"🔁 Retweeted {hashtag}")
-                time.sleep(2)
-            except Exception as e:
-                print(f"⚠️ Error retweeting: {e}")
-    except TimeoutException:
-        print(f"⚠️ No tweets found for {hashtag}")
+            except Exception:
+                pass
+
+        # 3ª tentativa: botão de login direto
+        if not next_button:
+            try:
+                next_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, '//div[@data-testid="LoginForm_Login_Button"]'))
+                )
+            except Exception:
+                pass
+
+        # 4ª tentativa: o botão que você encontrou (button[2])
+        if not next_button:
+            try:
+                next_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, '(//button[@type="button" and not(@disabled)])[2]'))
+                )
+            except Exception:
+                pass
+
+        # 5ª tentativa: botão genérico logo após o input
+        if not next_button:
+            try:
+                next_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, '//input[@name="text"]/ancestor::div[1]/following::button[1]'))
+                )
+            except Exception:
+                pass
+
+        if not next_button:
+            save_debug(driver, "next_button_failed")
+            raise RuntimeError("❌ Couldn't find username input or next button")
+
+        next_button.click()
+        print("👉 Clicked Next button")
+
+    except Exception:
+        save_debug(driver, "next_button_exception")
+        traceback.print_exc()
+        raise
 
 
 def main():
     print("🚀 Starting retweet bot...")
-    chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-
-    driver = webdriver.Chrome(options=chrome_options)
-
+    driver = create_driver()
     try:
         login(driver)
-        for tag in HASHTAGS:
-            search_and_retweet(driver, tag)
+        print("✅ Login flow completo (até username).")
+        # aqui você pode continuar com senha e depois retweetar
     finally:
         driver.quit()
         print("🏁 Bot finished successfully")
