@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # ==========================
 # CONFIGURAÇÕES
@@ -38,24 +38,23 @@ def login(driver):
     driver.get("https://x.com/")
     time.sleep(4)
 
-    # 1. Clica no botão inicial "Entrar"
+    # 1. Clica no botão inicial "Entrar" se existir
     try:
         login_button = WebDriverWait(driver, 15).until(
             EC.element_to_be_clickable((By.XPATH, '//a[@data-testid="loginButton"]'))
         )
         login_button.click()
         print("🔑 Clicked login button")
-        time.sleep(3)
+        time.sleep(2)
     except TimeoutException:
-        driver.save_screenshot(f"{SCREENSHOT_DIR}/login_button_failed.png")
-        save_html(driver, "login_button_failed.html")
-        raise RuntimeError("❌ Couldn't find initial login button")
+        print("⚠️ Login button not found, maybe already on login page")
 
     # 2. Preenche o username/email
     try:
         username_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "text"))
         )
+        username_input.clear()
         username_input.send_keys(USERNAME)
         print("👤 Entered username")
         time.sleep(1)
@@ -64,64 +63,76 @@ def login(driver):
         save_html(driver, "username_input_failed.html")
         raise RuntimeError("❌ Couldn't find username input")
 
-    # 3. Tenta clicar no botão "Avançar" OU "Entrar"
-    try:
-        # Primeiro tenta encontrar "Avançar"
-        next_button = WebDriverWait(driver, 5).until(
-            EC.element_to_be_clickable((
-                By.XPATH,
-                '//div[@role="button" and .//span[contains(text(),"Avançar")]]'
-            ))
-        )
-        next_button.click()
-        print("➡️ Clicked 'Avançar'")
-    except TimeoutException:
-        print("⚠️ 'Avançar' not found, trying direct 'Entrar' button...")
+    # 3. Tenta clicar no botão correto dinamicamente
+    buttons_texts = ["Avançar", "Next", "Entrar", "Log in"]
+    clicked = False
+    for text in buttons_texts:
         try:
-            login_direct_button = WebDriverWait(driver, 5).until(
+            btn = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((
                     By.XPATH,
-                    '//div[@role="button" and .//span[contains(text(),"Entrar")]]'
+                    f'//div[@role="button" and .//span[contains(text(),"{text}")]]'
                 ))
             )
-            login_direct_button.click()
-            print("🔑 Clicked direct 'Entrar'")
+            btn.click()
+            print(f"➡️ Clicked '{text}'")
+            clicked = True
+            time.sleep(2)
+            break
         except TimeoutException:
-            # Última tentativa: pega o primeiro botão genérico habilitado
-            try:
-                fallback_button = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((
-                        By.XPATH,
-                        '//div[@role="button" and not(@disabled)]'
-                    ))
-                )
-                fallback_button.click()
-                print("🟢 Clicked fallback button")
-            except TimeoutException:
-                driver.save_screenshot(f"{SCREENSHOT_DIR}/next_button_failed.png")
-                save_html(driver, "next_button_failed.html")
-                raise RuntimeError("❌ Couldn't find any button after username")
+            continue
 
-    time.sleep(3)
+    if not clicked:
+        # Fallback genérico
+        try:
+            fallback_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(('xpath', '//div[@role="button" and not(@disabled)]'))
+            )
+            fallback_button.click()
+            print("🟢 Clicked fallback button")
+            time.sleep(2)
+        except TimeoutException:
+            driver.save_screenshot(f"{SCREENSHOT_DIR}/next_button_failed.png")
+            save_html(driver, "next_button_failed.html")
+            raise RuntimeError("❌ Couldn't find any button after username")
 
-    # 4. Preenche a senha e clica no botão final "Entrar"
+    # 4. Preenche a senha
     try:
         password_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "password"))
         )
+        password_input.clear()
         password_input.send_keys(PASSWORD)
         print("🔒 Entered password")
         time.sleep(1)
 
-        final_login_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, '//button[@data-testid="LoginForm_Login_Button"]'))
-        )
-        final_login_button.click()
-        print("✅ Clicked final 'Entrar'")
+        # Tenta clicar no botão final
+        final_buttons = ["Entrar", "Log in", "Login"]
+        clicked_final = False
+        for text in final_buttons:
+            try:
+                final_login_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((
+                        By.XPATH,
+                        f'//div[@role="button" and .//span[contains(text(),"{text}")]] | //button[contains(text(),"{text}")]'
+                    ))
+                )
+                final_login_button.click()
+                print(f"✅ Clicked final '{text}'")
+                clicked_final = True
+                break
+            except TimeoutException:
+                continue
+
+        if not clicked_final:
+            driver.save_screenshot(f"{SCREENSHOT_DIR}/password_input_failed.png")
+            save_html(driver, "password_input_failed.html")
+            raise RuntimeError("❌ Couldn't click final login button")
+
     except TimeoutException:
         driver.save_screenshot(f"{SCREENSHOT_DIR}/password_input_failed.png")
         save_html(driver, "password_input_failed.html")
-        raise RuntimeError("❌ Couldn't enter password or click final login")
+        raise RuntimeError("❌ Couldn't find password input")
 
     # 5. Confirma se login foi bem-sucedido
     time.sleep(5)
@@ -180,6 +191,7 @@ def search_and_retweet(driver):
 # ==========================
 def main():
     options = uc.ChromeOptions()
+    # Roda headless mas de forma mais compatível
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
